@@ -2,7 +2,7 @@ CROSS_HOST="i686-w64-mingw32"
 inherit cross
 
 NAME="mingw64-i686-openssl"
-VERSION=1.0.2o
+VERSION=1.1.1a
 RELEASE=1
 CATEGORY="Devel"
 SUMMARY="OpenSSL encryption library for Win32 toolchain"
@@ -11,11 +11,34 @@ contains msvcrt-linked binaries (aka 'mingw').  It is for use with the
 mingw64-i686-gcc cross compiler, and installs into the
 /usr/i686-w64-mingw32/sys-root/mingw/{lib,include} directories."
 HOMEPAGE="http://www.openssl.org/"
-SRC_URI="https://www.openssl.org/source/openssl-${VERSION}.tar.gz"
+#SRC_URI="https://www.openssl.org/source/openssl-${VERSION}.tar.gz"
+sha512sum=17d2703b2169f36b2ecd50d014103f31e22bbd42807b4688a3cd6140911e0aa9a2fa2bb1d4dda4eae000913a1551d85ac9c441a69c053a8ad10b593ec2a588b5
+SRC_URI="https://src.fedoraproject.org/repo/pkgs/openssl/openssl-1.1.1a-hobbled.tar.xz/sha512/${sha512sum}/openssl-${VERSION}-hobbled.tar.xz"
+SRC_URI+="
+	fedora/ec_curve.c
+	fedora/ectest.c
+"
 SRC_DIR="openssl-${VERSION}"
 PATCH_URI="
-	1.0.1-libname.patch
+	fedora/openssl-1.1.1-build.patch
+	fedora/openssl-1.1.1-defaults.patch
+	fedora/openssl-1.1.0-no-html.patch
+	fedora/openssl-1.1.1-man-rename.patch
+	fedora/openssl-1.1.0-issuer-hash.patch
+	fedora/openssl-1.1.1-conf-paths.patch
+	fedora/openssl-1.1.1-no-brainpool.patch
+	fedora/openssl-1.1.1-ec-curves.patch
+	fedora/openssl-1.1.1-disable-ssl3.patch
+	fedora/openssl-1.1.1-ignore-bound.patch
+	fedora/openssl-1.1.1-weak-ciphers.patch
+	fedora/openssl-1.1.1-seclevel.patch
 "
+
+CYGPORT_USE_UNSTABLE_API=1
+src_unpack_hook() {
+	mv ec_curve.c crypto/ec/
+	mv ectest.c test/
+}
 
 src_compile() {
 	lndirs
@@ -24,18 +47,18 @@ src_compile() {
 	./Configure \
 		--prefix=${CROSS_PREFIX} \
 		--cross-compile-prefix=${CROSS_HOST}- \
-		zlib enable-rc5 no-mdc2 no-hw \
+		zlib enable-camellia enable-seed enable-rfc3779 \
+		enable-cms enable-md2 enable-rc5 enable-ssl3 enable-ssl3-method \
+		enable-weak-ssl-ciphers \
+		no-mdc2 no-ec2m \
 		shared mingw
-	cygmake depend
-	cygmake all OPT_CFLAGS="${CFLAGS}"
-	cygmake build-shared OPT_CFLAGS="${CFLAGS}"
+	cygmake all -j1
 }
 
 src_install() {
 	cd ${B}
-	cygmake install_sw INSTALL_PREFIX=${D} -j1
-
-	mv ${D}${CROSS_LIBDIR}/engines/* ${D}${CROSS_BINDIR}/
+	cygmake install_sw DESTDIR=${D} -j1
+	chmod 0755 ${D}${CROSS_BINDIR}/*.dll
 
 	rm -f ${D}${CROSS_BINDIR}/{c_rehash,*.exe}
 	rm -fr ${D}${CROSS_PREFIX}/ssl/misc
